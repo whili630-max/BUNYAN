@@ -1,0 +1,6 @@
+/build/
+/.dart_tool/
+/node_modules/
+.env*
+config/*.secrets.json
+*.zip
