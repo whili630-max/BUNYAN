@@ -1,7 +1,45 @@
-# .cpanel.yml
+# .cpanel.yml  — نشر تلقائي إلى public_html بدون SSH
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home//ayvyxx1tqw2s/public_html/
-    - /bin/mkdir -p "$DEPLOYPATH"
-    - /bin/rsync -a --delete --exclude ".git" --exclude ".gitignore" ./ "$DEPLOYPATH"
+    - export DEPLOY_PATH="/home/ayyvxx1tqw2s/public_html"
+
+    # تأكيد مجلد الهدف
+    - /bin/mkdir -p ${DEPLOY_PATH}
+
+    # انسخ كل شيء مع الاستثناءات
+    - /bin/rsync -av --delete \
+        --exclude ".git/" \
+        --exclude ".github/" \
+        --exclude "sql/" \
+        --exclude "README.md" \
+        ./ ${DEPLOY_PATH}/
+
+    # تأكد من الصلاحيات الآمنة
+    - /bin/find ${DEPLOY_PATH} -type d -exec /bin/chmod 755 {} \;
+    - /bin/find ${DEPLOY_PATH} -type f -exec /bin/chmod 644 {} \;
+
+    # احمِ ملفات git
+    - /bin/printf "%s\n" "RedirectMatch 404 \.git" >> ${DEPLOY_PATH}/.htaccess
+
+    # ضع/حدّث توجيه الجذر إلى /client/ مع حماية المسارات
+    - /bin/cat > ${DEPLOY_PATH}/.htaccess <<'HTEND'
+Options -Indexes
+RewriteEngine On
+RewriteBase /
+
+# لا تُعد التوجيه إذا كنا داخل هذه المسارات
+RewriteCond %{REQUEST_URI} !^/client/ [NC]
+RewriteCond %{REQUEST_URI} !^/(api|assets|sql|config|_common|admin|supplier|driver|supervisor)/ [NC]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# استخدم 302 مؤقتًا لاختبار التوجيه، ثم بدّلها 301 لاحقًا
+RewriteRule ^$ client/ [L,R=302]
+
+# منع الوصول لملفات git
+RedirectMatch 404 /\.git
+HTEND
+
+    # علامة نجاح بسيطة
+    - /bin/date -u +"%Y-%m-%dT%H:%M:%SZ" > ${DEPLOY_PATH}/deploy_time.txt
